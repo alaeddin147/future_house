@@ -275,7 +275,7 @@
             // 3. Set a timeout to turn the relay OFF after 3 seconds
             setTimeout(() => {
                 relayRef.set(currentState); // Revert to the original state
-            }, 3000); // 3 seconds (3000 milliseconds)
+            }, 1000); // 3 seconds (3000 milliseconds)
         });
     };
 });
@@ -302,4 +302,5 @@
     };
   </script>
 </body>
+
 </html>
