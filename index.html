@@ -68,12 +68,10 @@
     #allOffBtn {
       background-color: #d32f2f;
     }
-    #allOffBtn:hover {
-      opacity: 0.8;
-    }
     #logoutBtn {
       background-color: #555;
     }
+    #allOffBtn:hover,
     #logoutBtn:hover {
       opacity: 0.8;
     }
@@ -157,31 +155,7 @@
 
   <!-- Dashboard -->
   <div id="dashboard">
-    <div class="relay-container">
-      <div class="relay-card">
-        <h2>Relay 1</h2>
-        <p>Status: <span id="status1">Loading...</span></p>
-        <button id="btn1">Toggle</button>
-      </div>
-
-      <div class="relay-card">
-        <h2>Relay 2</h2>
-        <p>Status: <span id="status2">Loading...</span></p>
-        <button id="btn2">Toggle</button>
-      </div>
-
-      <div class="relay-card">
-        <h2>Relay 3</h2>
-        <p>Status: <span id="status3">Loading...</span></p>
-        <button id="btn3">Toggle</button>
-      </div>
-
-      <div class="relay-card">
-        <h2>Relay 4</h2>
-        <p>Status: <span id="status4">Loading...</span></p>
-        <button id="btn4">Toggle</button>
-      </div>
-    </div>
+    <div class="relay-container"></div>
 
     <button id="allOffBtn">All OFF</button>
     <button id="logoutBtn">Logout</button>
@@ -212,13 +186,20 @@
     const allowedEmail = "abc@gmail.com";
     const allowedPassword = "00000000";
 
-    const loginForm = document.getElementById("loginForm");
-    const dashboard = document.getElementById("dashboard");
-    const loginBtn = document.getElementById("loginBtn");
+    // Shared DOM helper.
+    const $ = (id) => document.getElementById(id);
 
-    loginBtn.addEventListener("click", () => {
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
+    const relays = [1, 2, 3, 4].map(id => ({ id, path: `relay${id}` }));
+
+    // Toggle between the login form and the dashboard.
+    function showDashboard(visible) {
+      $("loginForm").style.display = visible ? "none" : "block";
+      $("dashboard").style.display = visible ? "block" : "none";
+    }
+
+    $("loginBtn").addEventListener("click", () => {
+      const email = $("email").value.trim();
+      const password = $("password").value;
 
       if (!email || !password) {
         alert("Please enter email and password.");
@@ -231,8 +212,7 @@
         firebase.auth().signInWithEmailAndPassword(email, password)
           .then(userCredential => {
             console.log("Signed in as", userCredential.user.email);
-            loginForm.style.display = "none";
-            dashboard.style.display = "block";
+            showDashboard(true);
             startRelayControl();
           })
           .catch(error => {
@@ -245,56 +225,50 @@
 
     function startRelayControl() {
       const db = firebase.database();
+      const relayRef = (relay) => db.ref("/" + relay.path);
 
-      const relays = [
-        { id: 1, path: "relay1" },
-        { id: 2, path: "relay2" },
-        { id: 3, path: "relay3" },
-        { id: 4, path: "relay4" },
-      ];
+      const container = document.querySelector("#dashboard .relay-container");
+      container.innerHTML = relays.map(relay => `
+      <div class="relay-card">
+        <h2>Relay ${relay.id}</h2>
+        <p>Status: <span id="status${relay.id}">Loading...</span></p>
+        <button id="btn${relay.id}">Toggle</button>
+      </div>`).join("");
 
       relays.forEach(relay => {
-    const statusText = document.getElementById(`status${relay.id}`);
-    const toggleButton = document.getElementById(`btn${relay.id}`);
-    const relayRef = db.ref("/" + relay.path);
+        const statusText = $(`status${relay.id}`);
+        const toggleButton = $(`btn${relay.id}`);
+        const ref = relayRef(relay);
 
-    relayRef.on("value", (snapshot) => {
-        const state = snapshot.val();
-        statusText.innerText = state ? "ON" : "OFF";
-        toggleButton.style.backgroundColor = state ? "green" : "blue";
-    });
+        ref.on("value", (snapshot) => {
+          const state = snapshot.val();
+          statusText.innerText = state ? "ON" : "OFF";
+          toggleButton.style.backgroundColor = state ? "green" : "blue";
+        });
 
-    toggleButton.onclick = () => {
-        // 1. Get the current state (for reverting later)
-        relayRef.get().then(snap => {
+        toggleButton.onclick = () => {
+          // Momentarily pulse the relay ON, then revert to its previous state.
+          ref.get().then(snap => {
             const currentState = snap.val();
-
-            // 2. Turn the relay ON immediately
-            relayRef.set(true); // Set to ON (true)
-
-            // 3. Set a timeout to turn the relay OFF after 3 seconds
+            ref.set(true);
             setTimeout(() => {
-                relayRef.set(currentState); // Revert to the original state
-            }, 800); // 3 seconds (3000 milliseconds)
-        });
-    };
-});
+              ref.set(currentState);
+            }, 800);
+          });
+        };
+      });
 
-
-      document.getElementById("allOffBtn").onclick = () => {
-        relays.forEach(relay => {
-          db.ref("/" + relay.path).set(false);
-        });
+      $("allOffBtn").onclick = () => {
+        relays.forEach(relay => relayRef(relay).set(false));
       };
     }
 
-    document.getElementById("logoutBtn").onclick = () => {
+    $("logoutBtn").onclick = () => {
       firebase.auth().signOut()
         .then(() => {
-          dashboard.style.display = "none";
-          loginForm.style.display = "block";
-          document.getElementById("email").value = "";
-          document.getElementById("password").value = "";
+          showDashboard(false);
+          $("email").value = "";
+          $("password").value = "";
         })
         .catch(error => {
           alert("Logout failed: " + error.message);
