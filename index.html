@@ -262,6 +262,9 @@
         const state = snapshot.val();
         statusText.innerText = state ? "ON" : "OFF";
         toggleButton.style.backgroundColor = state ? "green" : "blue";
+    }, (error) => {
+        console.error(`Failed to read status for ${relay.path}:`, error);
+        statusText.innerText = "Error";
     });
 
     toggleButton.onclick = () => {
@@ -270,12 +273,18 @@
             const currentState = snap.val();
 
             // 2. Turn the relay ON immediately
-            relayRef.set(true); // Set to ON (true)
-
-            // 3. Set a timeout to turn the relay OFF after 3 seconds
-            setTimeout(() => {
-                relayRef.set(currentState); // Revert to the original state
-            }, 800); // 3 seconds (3000 milliseconds)
+            return relayRef.set(true).then(() => {
+                // 3. Set a timeout to revert the relay to its original state
+                setTimeout(() => {
+                    relayRef.set(currentState).catch(error => {
+                        console.error(`Failed to revert ${relay.path}:`, error);
+                        alert(`Failed to revert ${relay.path}: ` + error.message);
+                    });
+                }, 800);
+            });
+        }).catch(error => {
+            console.error(`Failed to toggle ${relay.path}:`, error);
+            alert(`Failed to toggle ${relay.path}: ` + error.message);
         });
     };
 });
@@ -283,7 +292,10 @@
 
       document.getElementById("allOffBtn").onclick = () => {
         relays.forEach(relay => {
-          db.ref("/" + relay.path).set(false);
+          db.ref("/" + relay.path).set(false).catch(error => {
+            console.error(`Failed to turn off ${relay.path}:`, error);
+            alert(`Failed to turn off ${relay.path}: ` + error.message);
+          });
         });
       };
     }
